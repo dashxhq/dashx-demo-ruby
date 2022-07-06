@@ -1,14 +1,10 @@
-PATH
-  remote: /Users/raviramchandani/Projects/dashx-ruby
-  specs:
-    dashx (0.4.1)
-      httparty (~> 0.16)
-
 GEM
   remote: https://rubygems.org/
   specs:
     ast (2.4.2)
     bcrypt (3.1.18)
+    dashx (0.4.0)
+      httparty (~> 0.16)
     dotenv (2.7.6)
     httparty (0.20.0)
       mime-types (~> 3.0)
@@ -58,7 +54,7 @@ PLATFORMS
 
 DEPENDENCIES
   bcrypt
-  dashx!
+  dashx
   dotenv
   pg
   rubocop
