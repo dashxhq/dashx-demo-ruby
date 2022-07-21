@@ -141,12 +141,13 @@ post '/login' do
 end
 
 patch '/update-profile' do
+  protected!
+
   first_name = params['first_name']
   last_name = params['last_name']
   email = params['email']
   avatar = params['avatar']
 
-  protected!
   email.nil?.to_s
   if !email.nil? && @user['email'] != email
     result = $conn.exec_params('SELECT * FROM users WHERE email = $1', [email])
@@ -181,4 +182,30 @@ patch '/update-profile' do
   )
 
   { message: 'Profile updated.', user: user }.to_json
+end
+
+post '/forgot-password' do
+  email = params['email']
+
+  halt 400, { message: 'Email is required.' }.to_json if email.nil?
+
+  result = $conn.exec_params(
+    'SELECT * FROM users WHERE email = $1',
+    [email]
+  )
+
+  halt 404, { message: 'This email does not exist in our records.' }.to_json if result.num_tuples.zero?
+  exp = Time.now.to_i + (15 * 60)
+  payload = { email: email, exp: exp }
+  token = JWT.encode payload, ENV['JWT_SECRET'], 'HS256'
+
+  DashX.deliver(
+    'email/forgot-password',
+    {
+      to: email,
+      data: { token: token }
+    }
+  )
+
+  { message: 'Check your inbox for a link to reset your password.' }.to_json
 end
