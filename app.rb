@@ -87,9 +87,24 @@ post '/contact' do
                   {
                     name: 'Contact us',
                     from: 'noreply@dashxdemo.com',
-                    to: [email, 'ravi@keepworks.com'],
+                    to: [email, 'sales@dashxdemo.com'],
                     subject: 'Contact Us Form',
-                    html_body: html_body
+                    html_body:
+                    `<mjml>
+                      <mj-body>
+                        <mj-section>
+                          <mj-column>
+                            <mj-divider border-color="#F45E43"></mj-divider>
+                            <mj-text>Thanks for reaching out! We will get back to you soon!</mj-text>
+                            <mj-text>Your feedback: </mj-text>
+                            <mj-text>Name: ${name}</mj-text>
+                            <mj-text>Email: ${email}</mj-text>
+                            <mj-text>Feedback: ${feedback}</mj-text>
+                            <mj-divider border-color="#F45E43"></mj-divider>
+                          </mj-column>
+                        </mj-section>
+                      </mj-body>
+                    </mjml>`
                   }
                 })
 
@@ -98,29 +113,11 @@ post '/contact' do
   }.to_json
 end
 
-def html_body
-  `<mjml>
-    <mj-body>
-      <mj-section>
-        <mj-column>
-          <mj-divider border-color="#F45E43"></mj-divider>
-          <mj-text>Thanks for reaching out! We will get back to you soon!</mj-text>
-          <mj-text>Your feedback: </mj-text>
-          <mj-text>Name: ${name}</mj-text>
-          <mj-text>Email: ${email}</mj-text>
-          <mj-text>Feedback: ${feedback}</mj-text>
-          <mj-divider border-color="#F45E43"></mj-divider>
-        </mj-column>
-      </mj-section>
-    </mj-body>
-  </mjml>`
-end
-
 post '/login' do
   email = params['email']
   password = params['password']
 
-  halt 422, 'email and password are required.' if email.nil? || password.nil?
+  halt 401, 'Incorrect email or password.' if email.nil? || password.nil?
 
   result = $conn.exec_params(
     'SELECT id, first_name, last_name, email, encrypted_password FROM users WHERE email = $1',
