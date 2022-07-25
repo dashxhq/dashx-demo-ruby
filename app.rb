@@ -209,3 +209,146 @@ post '/forgot-password' do
 
   { message: 'Check your inbox for a link to reset your password.' }.to_json
 end
+
+post '/reset-password' do
+  token = params['token']
+  password = params['password']
+
+  halt 400, { message: 'Token is required.' }.to_json if token.nil?
+  halt 400, { message: 'Password is required.' }.to_json if password.nil?
+
+  begin
+    payload = JWT.decode token, ENV['JWT_SECRET'], true, { algorithm: 'HS256' }
+  rescue JWT::ExpiredSignature
+    halt 422, { message: 'Your reset password link has expired.' }.to_json
+  end
+
+  email = payload[0]['email']
+
+  result = $conn.exec_params(
+    'UPDATE users SET encrypted_password = $1 WHERE email = $2 RETURNING id',
+    [BCrypt::Password.create(password), email]
+  )
+
+  halt 422, { message: 'Invalid reset password link.' }.to_json if result.num_tuples.zero?
+
+  { message: 'You have successfully reset your password.' }.to_json
+end
+
+get '/posts' do
+  protected!
+
+  limit = params['limit'] || 30
+  offset = params['offset'] || 0
+
+  result = $conn.exec_params(
+    'SELECT posts.*, first_name, last_name, email, bookmarked_at FROM posts
+      INNER JOIN users ON posts.user_id = users.id
+      LEFT JOIN bookmarks ON bookmarks.post_id = posts.id and bookmarks.user_id = $1
+      ORDER BY posts.created_at DESC LIMIT $2 OFFSET $3',
+    [@user['id'], limit, offset]
+  )
+
+  posts_list = []
+  result.each do |row|
+    row['user'] = {
+      id: row['user_id'],
+      first_name: row['first_name'],
+      last_name: row['last_name'],
+      email: row['email']
+    }
+    posts_list.push(row.except('first_name', 'last_name', 'email'))
+  end
+
+  { posts: posts_list }.to_json
+end
+
+post '/posts' do
+  protected!
+
+  text = params['text'] || ''
+  result = $conn.exec_params(
+    'INSERT INTO posts (user_id, text) VALUES ($1, $2) RETURNING *',
+    [@user['id'], text]
+  )
+
+  post = result.first
+  DashX.track('Post Created', @user['id'], post)
+  { message: 'Successfully created post.', post: post }.to_json
+end
+
+put '/posts/:post_id/toggle-bookmark' do
+  protected!
+
+  result = $conn.exec_params(
+    'INSERT INTO bookmarks (user_id, post_id) VALUES ($1, $2) ON CONFLICT (user_id, post_id)
+    DO UPDATE SET bookmarked_at = (CASE WHEN bookmarks.bookmarked_at IS NULL THEN NOW() ELSE NULL END)
+    RETURNING *;',
+    [@user['id'], params['post_id']]
+  )
+
+  bookmark = result.first
+  if bookmark['bookmarked_at'].nil?
+    DashX.track('Post Unbookmarked', @user['id'], bookmark)
+  else
+    DashX.track('Post Bookmarked', @user['id'], bookmark)
+  end
+
+  status 204
+end
+
+get '/posts/bookmarked' do
+  protected!
+
+  limit = params['limit'] || 30
+  offset = params['offset'] || 0
+
+  result = $conn.exec_params(
+    'SELECT posts.*, first_name, last_name, email, bookmarks.id as bookmark_id, bookmarked_at FROM posts
+    INNER JOIN users ON posts.user_id = users.id
+    INNER JOIN bookmarks ON posts.id = bookmarks.post_id
+    where bookmarks.user_id = $1 AND bookmarks.bookmarked_at IS NOT NULL
+    ORDER BY posts.created_at DESC LIMIT $2 OFFSET $3',
+    [@user['id'], limit, offset]
+  )
+
+  posts_list = []
+  result.each do |row|
+    row['user'] = {
+      id: row['user_id'],
+      first_name: row['first_name'],
+      last_name: row['last_name'],
+      email: row['email']
+    }
+    posts_list.push(row.except('first_name', 'last_name', 'email'))
+  end
+
+  { posts: posts_list }.to_json
+end
+
+get '/products' do
+  protected!
+
+  begin
+    product_names = %w[pen coffee-mug notebook notebook-subscription paper-subscription]
+
+    products = []
+    product_names.each { |name| products.push(DashX.fetch_item(name).parsed_response['data']['fetchItem']) }
+  rescue StandardError => e
+    halt 500, { message: e.to_s }.to_json
+  end
+
+  { message: 'Successfully fetched.', products: products }.to_json
+end
+
+get '/products/:slug' do
+  protected!
+
+  begin
+    product = DashX.fetch_item(params['slug']).parsed_response['data']['fetchItem']
+  rescue StandardError => e
+    halt 500, { message: e.to_s }.to_json
+  end
+
+  { message: 'Successfully fetched.', product: product }.to_json
+end
