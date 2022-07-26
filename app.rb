@@ -317,7 +317,7 @@ get '/posts/bookmarked' do
       last_name: row['last_name'],
       email: row['email']
     }
-    posts_list.push(row.except('first_name', 'last_name', 'email'))
+    posts_list.push(row.except('first_name', 'last_name', 'email', 'bookmark_id'))
   end
 
   { posts: posts_list }.to_json
