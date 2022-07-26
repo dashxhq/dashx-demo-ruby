@@ -145,7 +145,6 @@ patch '/update-profile' do
   email = params['email']
   avatar = params['avatar']
 
-  email.nil?.to_s
   if !email.nil? && @user['email'] != email
     result = $conn.exec_params('SELECT * FROM users WHERE email = $1', [email])
 
@@ -301,7 +300,7 @@ get '/posts/bookmarked' do
   offset = params['offset'] || 0
 
   result = $conn.exec_params(
-    'SELECT posts.*, first_name, last_name, email, bookmarks.id as bookmark_id, bookmarked_at FROM posts
+    'SELECT posts.*, first_name, last_name, email, bookmarked_at FROM posts
     INNER JOIN users ON posts.user_id = users.id
     INNER JOIN bookmarks ON posts.id = bookmarks.post_id
     where bookmarks.user_id = $1 AND bookmarks.bookmarked_at IS NOT NULL
@@ -317,7 +316,7 @@ get '/posts/bookmarked' do
       last_name: row['last_name'],
       email: row['email']
     }
-    posts_list.push(row.except('first_name', 'last_name', 'email', 'bookmark_id'))
+    posts_list.push(row.except('first_name', 'last_name', 'email'))
   end
 
   { posts: posts_list }.to_json
