@@ -29,7 +29,7 @@ helpers do
     )
     halt 403, { message: 'Invalid token.' }.to_json if result.num_tuples.zero?
 
-    @user = result[0]
+    @user = result.first
   rescue JWT::DecodeError
     halt 403, { message: 'Invalid token.' }.to_json
   end
@@ -130,11 +130,27 @@ post '/login' do
     halt 401, { message: 'Incorrect email or password.' }.to_json
   end
 
-  user = result[0].except('encrypted_password')
+  user = result.first.except('encrypted_password')
   payload = { user: user, dashx_token: DashX.generate_identity_token(user['id']) }
   token = JWT.encode payload, ENV['JWT_SECRET'], 'HS256'
 
   { message: 'User logged in.', token: token }.to_json
+end
+
+get '/profile' do
+  protected!
+
+  begin
+    result = $conn.exec_params(
+      'SELECT id, first_name, last_name, email, avatar FROM users
+      WHERE id = $1',
+      [@user['id']]
+    )
+  rescue StandardError => e
+    halt 500, { message: e.to_s }.to_json
+  end
+
+  { message: 'Successfully fetched.', user: result.first }.to_json
 end
 
 patch '/update-profile' do
@@ -167,7 +183,7 @@ patch '/update-profile' do
     halt 500, { message: e.to_s }.to_json
   end
 
-  user = result[0]
+  user = result.first
   DashX.identify(
     user['id'],
     {
@@ -263,9 +279,12 @@ post '/posts' do
   protected!
 
   text = params['text'] || ''
+  image = params['image']
+  video = params['video']
+
   result = $conn.exec_params(
-    'INSERT INTO posts (user_id, text) VALUES ($1, $2) RETURNING *',
-    [@user['id'], text]
+    'INSERT INTO posts (user_id, text, image, video) VALUES ($1, $2, $3, $4) RETURNING *',
+    [@user['id'], text, image, video]
   )
 
   post = result.first
