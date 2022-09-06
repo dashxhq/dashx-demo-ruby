@@ -2,3 +2,6 @@ Metrics/MethodLength:
   Enabled: false
 Metrics/BlockLength:
   Enabled: false
+Metrics/ABCSize:
+  Enabled: true
+  CountRepeatedAttributes: false

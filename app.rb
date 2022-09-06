@@ -20,18 +20,21 @@ $conn = PG::Connection.new(ENV['DATABASE_URL'])
 
 helpers do
   def protected!
-    bearer = env.fetch('HTTP_AUTHORIZATION', '').slice(7..-1)
-    payload = JWT.decode bearer, ENV['JWT_SECRET'], true, { algorithm: 'HS256' }
+    # Remove 'Bearer ' string from header
+    token = env.fetch('HTTP_AUTHORIZATION', '').slice(7..-1)
+    payload = JWT.decode token, ENV['JWT_SECRET'], true, { algorithm: 'HS256' }
 
     result = $conn.exec_params(
       'SELECT * FROM users WHERE id = $1',
       [payload[0]['user']['id']]
     )
-    halt 403, { message: 'Invalid token.' }.to_json if result.num_tuples.zero?
+    halt 401, { message: 'Invalid token.' }.to_json if result.num_tuples.zero?
 
     @user = result.first
+  rescue JWT::ExpiredSignature
+    halt 401, { message: 'The access token expired.'.to_json }
   rescue JWT::DecodeError
-    halt 403, { message: 'Invalid token.' }.to_json
+    halt 401, { message: 'Invalid token.' }.to_json
   end
 end
 
@@ -131,7 +134,8 @@ post '/login' do
   end
 
   user = result.first.except('encrypted_password')
-  payload = { user: user, dashx_token: DashX.generate_identity_token(user['id']) }
+  exp = Time.now.to_i + (86_400 * 30)
+  payload = { user: user, dashx_token: DashX.generate_identity_token(user['id']), exp: exp }
   token = JWT.encode payload, ENV['JWT_SECRET'], 'HS256'
 
   { message: 'User logged in.', token: token }.to_json
@@ -199,7 +203,7 @@ end
 post '/forgot-password' do
   email = params['email']
 
-  halt 400, { message: 'Email is required.' }.to_json if email.nil?
+  halt 422, { message: 'Email is required.' }.to_json if email.nil?
 
   result = $conn.exec_params(
     'SELECT * FROM users WHERE email = $1',
@@ -207,6 +211,7 @@ post '/forgot-password' do
   )
 
   halt 404, { message: 'This email does not exist in our records.' }.to_json if result.num_tuples.zero?
+
   exp = Time.now.to_i + (15 * 60)
   payload = { email: email, exp: exp }
   token = JWT.encode payload, ENV['JWT_SECRET'], 'HS256'
@@ -226,8 +231,8 @@ post '/reset-password' do
   token = params['token']
   password = params['password']
 
-  halt 400, { message: 'Token is required.' }.to_json if token.nil?
-  halt 400, { message: 'Password is required.' }.to_json if password.nil?
+  halt 422, { message: 'Token is required.' }.to_json if token.nil?
+  halt 422, { message: 'Password is required.' }.to_json if password.nil?
 
   begin
     payload = JWT.decode token, ENV['JWT_SECRET'], true, { algorithm: 'HS256' }
