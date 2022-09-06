@@ -8,3 +8,4 @@ gem 'dashx'
 gem 'dotenv'
 gem 'rubocop', require: false
 gem 'bcrypt'
+gem 'jwt'
