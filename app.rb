@@ -135,7 +135,11 @@ post '/login' do
 
   user = result.first.except('encrypted_password')
   exp = Time.now.to_i + (86_400 * 30)
-  payload = { user: user, dashx_token: DashX.generate_identity_token(user['id']), exp: exp }
+
+  dashx_token_payload = { kind: 'USER', uid: user['id'], exp: exp }
+  dashx_token = JWT.encode dashx_token_payload, ENV['DASHX_PRIVATE_KEY'], 'HS256'
+
+  payload = { user: user, dashx_token: dashx_token, exp: exp }
   token = JWT.encode payload, ENV['JWT_SECRET'], 'HS256'
 
   { message: 'User logged in.', token: token }.to_json
