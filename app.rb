@@ -139,10 +139,10 @@ post '/login' do
   dashx_token_payload = { kind: 'USER', uid: user['id'], exp: exp }
   dashx_token = JWT.encode dashx_token_payload, ENV['DASHX_PRIVATE_KEY'], 'HS256'
 
-  payload = { user: user, dashx_token: dashx_token, exp: exp }
+  payload = { user: user, exp: exp }
   token = JWT.encode payload, ENV['JWT_SECRET'], 'HS256'
 
-  { message: 'User logged in.', token: token }.to_json
+  { message: 'User logged in.', token: token, dashx_token: dashx_token }.to_json
 end
 
 get '/profile' do
